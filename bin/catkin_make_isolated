@@ -67,6 +67,8 @@ def parse_args(args=None):
     add('--catkin-make-args', dest='catkin_make_args', nargs='*', type=str,
         help='Arbitrary arguments which are passes to make but only for catkin packages.'
              'It must be passed after other arguments since it collects all following options.')
+    add('--prefix', dest='manual_prefix_path', type=str,
+        help='Override the current $CMAKE_PREFIX_PATH with a manual prefix path. This should be a colon-delimited list of paths.')
     opts = parser.parse_args(args)
     if opts.only_pkg_with_deps and not opts.merge and not opts.install:
         parser.error("The '--only-pkg-with-deps' option can only be used together with '--merge' or '--install'")
@@ -134,7 +136,8 @@ def main():
         catkin_make_args=opts.catkin_make_args,
         continue_from_pkg=opts.from_package is not None,
         only_pkg_with_deps=opts.only_pkg_with_deps,
-        destdir=destdir
+        destdir=destdir,
+        manual_prefix_path=opts.manual_prefix_path
     )
 
 if __name__ == '__main__':

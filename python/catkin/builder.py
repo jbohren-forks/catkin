@@ -686,7 +686,8 @@ def build_workspace_isolated(
     catkin_make_args=None,
     continue_from_pkg=False,
     only_pkg_with_deps=None,
-    destdir=None
+    destdir=None,
+    manual_prefix_path=None
 ):
     '''
     Runs ``cmake``, ``make`` and optionally ``make install`` for all
@@ -721,6 +722,8 @@ def build_workspace_isolated(
         recursive dependencies and ignore all other packages in the workspace,
         ``[str]``
     :param destdir: define DESTDIR for cmake/invocation, ``string``
+    :param manual_prefix_path: override $CMAKE_PREFIX_PATH with a python list
+        of directory paths to use instead
     '''
     if not colorize:
         disable_ANSI_colors()
@@ -918,25 +921,39 @@ def build_workspace_isolated(
 
         elif not pkg_develspace:
             # generate env.sh and setup.sh|bash|zsh for an empty devel space
-            if 'CMAKE_PREFIX_PATH' in os.environ.keys():
-                variables = {
-                    'CATKIN_GLOBAL_BIN_DESTINATION': 'bin',
-                    'CATKIN_LIB_ENVIRONMENT_PATHS': "'lib'",
-                    'CATKIN_PKGCONFIG_ENVIRONMENT_PATHS': "os.path.join('lib', 'pkgconfig')",
-                    'CMAKE_PREFIX_PATH_AS_IS': ';'.join(os.environ['CMAKE_PREFIX_PATH'].split(os.pathsep)),
-                    'PYTHON_INSTALL_DIR': get_python_install_dir(),
-                }
-                with open(generated_setup_util_py, 'w') as f:
-                    f.write(configure_file(os.path.join(get_cmake_path(), 'templates', '_setup_util.py.in'), variables))
-                os.chmod(generated_setup_util_py, stat.S_IXUSR | stat.S_IWUSR | stat.S_IRUSR)
-            else:
-                sys.exit("Unable to process CMAKE_PREFIX_PATH from environment. Cannot generate environment files.")
 
+            # initialize the variables used in the setup file templates
+            variables = {
+                'CATKIN_GLOBAL_BIN_DESTINATION': 'bin',
+                'CATKIN_LIB_ENVIRONMENT_PATHS': "'lib'",
+                'CATKIN_PKGCONFIG_ENVIRONMENT_PATHS': "os.path.join('lib', 'pkgconfig')",
+                'PYTHON_INSTALL_DIR': get_python_install_dir(),
+            }
+
+            # check if the CMAKE_PREFIX_PATH is being overridden
+            if not manual_prefix_path:
+                # get the prefix path from CMAKE_PREFIX_PATH
+                if 'CMAKE_PREFIX_PATH' in os.environ.keys():
+                    variables['CMAKE_PREFIX_PATH_AS_IS'] = ';'.join(os.environ['CMAKE_PREFIX_PATH'].split(os.pathsep)),
+                else:
+                    sys.exit("Unable to process CMAKE_PREFIX_PATH from environment. Cannot generate environment files.")
+            else:                    
+                # TODO: datatype error checking
+                # use the manual prefix path instead of the current CMAKE_PREFIX_PATH
+                variables['CMAKE_PREFIX_PATH_AS_IS'] = ';'.join(manual_prefix_path)
+
+            # generate the _setup_util file
+            with open(generated_setup_util_py, 'w') as f:
+                f.write(configure_file(os.path.join(get_cmake_path(), 'templates', '_setup_util.py.in'), variables))
+            os.chmod(generated_setup_util_py, stat.S_IXUSR | stat.S_IWUSR | stat.S_IRUSR)
+
+            # generate the env.sh file
             variables = {'SETUP_FILENAME': 'setup'}
             with open(generated_env_sh, 'w') as f:
                 f.write(configure_file(os.path.join(get_cmake_path(), 'templates', 'env.sh.in'), variables))
             os.chmod(generated_env_sh, stat.S_IXUSR | stat.S_IWUSR | stat.S_IRUSR)
 
+            # generate the shell-specific setup files
             variables = {'SETUP_DIR': develspace}
             for shell in ['sh', 'bash', 'zsh']:
                 with open(os.path.join(develspace, 'setup.%s' % shell), 'w') as f:

@@ -12,6 +12,7 @@ if os.path.exists(os.path.join(os.path.dirname(__file__), '..', 'python', 'catki
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'python'))
 from catkin.init_workspace import init_workspace
 from catkin.terminal_color import disable_ANSI_colors, fmt
+from catkin.builder import load_workspace_environment
 from catkin.builder import cmake_input_changed
 from catkin.builder import extract_cmake_and_make_arguments
 from catkin.builder import get_package_names_with_recursive_dependencies
@@ -26,6 +27,11 @@ from catkin_pkg.packages import find_packages
 def main():
     args = _parse_args()
     cmake_args = args.cmake_args
+
+    # Source the parent workspace if desired
+    if args.parent_ws_path:
+        print('Parent workspace: ' + str(args.parent_ws_path))
+        load_workspace_environment(args.parent_ws_path)
 
     # force --no-color if stdout is non-interactive
     if not sys.stdout.isatty():
@@ -202,6 +208,9 @@ def _parse_args(args=sys.argv[1:]):
     add('--no-color', action='store_true', help='Disables colored output (only for catkin_make and CMake)')
     add('--pkg', nargs='+', help='Invoke "make" on specific packages only')
     add('--only-pkg-with-deps', nargs='+', help='Only consider the specific packages and their recursive dependencies and ignore all other packages in the workspace')
+    add('--extend-ws', dest='parent_ws_path', type=str,
+        help='Explicitly extend another catkin workspace which might or might '
+             'not have already been sourced. This path should contain the catkin setup files.')
     add('--cmake-args', dest='cmake_args', nargs='*', type=str,
         help='Arbitrary arguments which are passes to CMake. '
              'It must be passed after other arguments since it collects all following options.')

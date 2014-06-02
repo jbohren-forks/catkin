@@ -67,6 +67,9 @@ def parse_args(args=None):
     add('--catkin-make-args', dest='catkin_make_args', nargs='*', type=str,
         help='Arbitrary arguments which are passes to make but only for catkin packages.'
              'It must be passed after other arguments since it collects all following options.')
+    add('--extend-ws', dest='parent_ws_path', type=str,
+        help='Explicitly extend another catkin workspace which might or might '
+             'not have already been sourced. This path should contain the catkin setup files.')
     opts = parser.parse_args(args)
     if opts.only_pkg_with_deps and not opts.merge and not opts.install:
         parser.error("The '--only-pkg-with-deps' option can only be used together with '--merge' or '--install'")
@@ -134,7 +137,8 @@ def main():
         catkin_make_args=opts.catkin_make_args,
         continue_from_pkg=opts.from_package is not None,
         only_pkg_with_deps=opts.only_pkg_with_deps,
-        destdir=destdir
+        destdir=destdir,
+        parent_ws_path=opts.parent_ws_path
     )
 
 if __name__ == '__main__':

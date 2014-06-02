@@ -57,6 +57,7 @@ except ImportError as e:
     )
 
 from catkin.cmake import get_cmake_path
+from catkin.workspace import CATKIN_MARKER_FILE
 from catkin.terminal_color import ansi, disable_ANSI_colors, fmt, sanitize
 from catkin_pkg.workspaces import ensure_workspace_marker
 
@@ -669,6 +670,76 @@ def _print_build_error(package, e):
     cprint('@{rf}@!<==@| Failed to process package \'@!@{bf}' + package.name + '@|\': \n  ' + e_msg)
 
 
+def get_workspace_environment(ws_path):
+    '''
+    Get the environemt variables which result from sourcing another workspace
+    path as the string output of `cmake -E environment`.
+
+    :param ws_path: path to the workspace whose environment should be loaded,
+    ``str``
+
+    :returns: a carriage-return-delimted string of environment variables, ``str``
+    '''
+    
+    # Check to make sure ws_path is a valid directory
+    if not os.path.isdir(ws_path):
+        raise IOError(
+        "Cannot load setup file from path \"%s\" because it is not a "
+        "directory." % ws_path
+        )
+
+    # Check to make sure ws_path contains a `.catkin` file
+    if not os.path.exists(os.path.join(ws_path, CATKIN_MARKER_FILE)):
+        raise IOError(
+        "Cannot load setup file from path \"%s\" because it is not a catkin "
+        "workspace (missing %s file)." % (ws_path, CATKIN_MARKER_FILE)
+        )
+
+    # Determine the shell to use to source the setup file
+    shell_path = os.environ['SHELL']
+    (_, shell_name) = os.path.split(shell_path)
+
+    # Use fallback shell if using a non-standard shell
+    if shell_name not in ['bash', 'zsh']:
+        shell_name = 'bash'
+
+    # Check to make sure ws_path contains the appropriate setup file
+    setup_file_path = os.path.join(ws_path,'setup.%s' % shell_name)
+    if not os.path.exists(setup_file_path):
+        raise IOError(
+        "Cannot load setup file \"%s\" because it does not exist." % setup_file_path
+        )
+
+    # Construct a command list which sources the setup file and prints the env to stdout
+    norc_flags = {'bash':'--norc', 'zsh':'-f'}
+    subcommand = 'source %s; cmake -E environment' % (setup_file_path)
+
+    command = [
+        shell_path, 
+        norc_flags[shell_name], 
+        '-c', subcommand]
+
+    # Run the command to source the other environment and output all environment variables
+    env_str = run_command(command, os.getcwd(), quiet=True)
+
+    env_regex = re.compile('(.+?)=(.*)$', re.M)
+    env_dict = dict(env_regex.findall(env_str))
+
+    return env_dict
+
+
+def load_workspace_environment(ws_path):
+    '''
+    Load the environemt variables which result from sourcing another
+    workspace path into this process's environment.
+    
+    :param ws_path: The path to a workspace containing catkin setup files
+    '''
+
+    env_dict = get_workspace_environment(ws_path)
+    os.environ.update(env_dict)
+
+
 def build_workspace_isolated(
     workspace='.',
     sourcespace=None,
@@ -686,7 +757,8 @@ def build_workspace_isolated(
     catkin_make_args=None,
     continue_from_pkg=False,
     only_pkg_with_deps=None,
-    destdir=None
+    destdir=None,
+    parent_ws_path=None
 ):
     '''
     Runs ``cmake``, ``make`` and optionally ``make install`` for all
@@ -721,7 +793,14 @@ def build_workspace_isolated(
         recursive dependencies and ignore all other packages in the workspace,
         ``[str]``
     :param destdir: define DESTDIR for cmake/invocation, ``string``
+    :param parent_ws_path: source another workspace before building this one, ``string``
     '''
+
+    # Source the parent workspace if desired
+    if parent_ws_path:
+        print('Parent workspace: ' + str(parent_ws_path))
+        load_workspace_environment(parent_ws_path)
+
     if not colorize:
         disable_ANSI_colors()
 
@@ -983,3 +1062,5 @@ def get_package_names_with_recursive_dependencies(packages, pkg_names):
                 if dep in packages_by_name and dep not in check_pkg_names and dep not in dependencies:
                     check_pkg_names.add(dep)
     return dependencies
+
+

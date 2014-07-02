@@ -18,7 +18,20 @@ message(STATUS "Using CATKIN_DEVEL_PREFIX: ${CATKIN_DEVEL_PREFIX}")
 
 # create workspace marker
 set(_catkin_marker_file "${CATKIN_DEVEL_PREFIX}/.catkin")
+set(_catkin_lock_file "${CATKIN_DEVEL_PREFIX}/.catkin_lock")
 
+macro(catkin_flock)
+  while(EXISTS ${_catkin_lock_file})
+    # this is a nice place to sleep, if we could 
+  endwhile()
+  file(WRITE ${_catkin_lock_file} "${PROJECT_NAME}")
+endmacro()
+
+macro(catkin_funlock)
+  file(REMOVE ${_catkin_lock_file})
+endmacro()
+
+catkin_flock()
 if(EXISTS ${_catkin_marker_file})
   # append to existing list of sourcespaces if it's not already there
   file(READ ${_catkin_marker_file} _existing_sourcespaces)
@@ -29,6 +42,7 @@ if(EXISTS ${_catkin_marker_file})
 else()
   file(WRITE ${_catkin_marker_file} "${CMAKE_SOURCE_DIR}")
 endif()
+catkin_funlock()
 
 # use either CMAKE_PREFIX_PATH explicitly passed to CMake as a command line argument
 # or CMAKE_PREFIX_PATH from the environment
